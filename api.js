@@ -346,47 +346,6 @@ var clientCache = function(clientLoader, options) {
 };
 
 /**
- * Local nonce cache for hawk, using an over-approximation
- *
- * options:
- * {
- *   size:             250   // Number of entries to keep track of
- * }
- *
- * Higher size helps mitigate replay attacks, but also takes more memory.
- * Please, note that this doesn't do much for replay-attacks if there are
- * multiple instance of the server process. But it's better than nothing,
- * and a lot cheaper and faster than using azure table storage.
- *
- * Ideally, nonces should probably be stored in something like memcache.
- */
-var nonceManager = function(options) {
-  options = _.defaults({}, options || {}, {
-    size:               250
-  });
-  var nextnonce = 0;
-  var N = options.size;
-  var noncedb = new Array(N);
-  for(var i = 0; i < N; i++) {
-    noncedb[i] = {nonce: null, ts: null};
-  }
-  return function(nonce, ts, cb) {
-    for (var i = 0; i < N; i++) {
-      if (noncedb[i].nonce === nonce && noncedb[i].ts === ts) {
-        debug("CRITICAL: Replay attack detected!");
-        return cb(new Error("Signature already used"));
-      }
-    }
-    noncedb[nextnonce].nonce  = nonce;
-    noncedb[nextnonce].ts     = ts;
-    // Increment nextnonce
-    nextnonce += 1;
-    nextnonce %= N;
-    cb();
-  };
-};
-
-/**
  * Authenticate client and validate that he satisfies one of the sets of scopes
  * required. Skips validation if `options.scopes` is `undefined`.
  *
@@ -666,7 +625,6 @@ var authenticate = function(nonceManager, clientLoader, options) {
 authenticate.Client       = Client;
 authenticate.clientCache  = clientCache;
 authenticate.clientLoader = clientLoader;
-authenticate.nonceManager = nonceManager;
 
 /**
  * Handle API end-point request
@@ -787,7 +745,6 @@ API.prototype.router = function(options) {
     inputLimit:           '10mb',
     allowedCORSOrigin:    '*',
     context:              {},
-    nonceManager:         nonceManager()
   });
 
   // Create clientLoader, if not provided
