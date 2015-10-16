@@ -17,6 +17,7 @@ var Promise         = require('promise');
 var http            = require('http');
 var PassportPersona = require('passport-persona');
 var sslify          = require('express-sslify');
+var stream          = require('stream');
 
 /**
  * Setup Middleware for normal browser consumable HTTP end-points.
@@ -204,7 +205,15 @@ var app = function(options) {
 
   // Middleware for development
   if (app.get('env') == 'development') {
-    app.use(morgan('dev'));
+    // use morgan to log requests, but log to debug so it can be filtered
+    let debug = require('debug')("base:app:request");
+    let morganDebug = stream.Writable({
+      write: function(chunk, encoding, next) {
+        // assume each chunk is line-aligned
+        debug(chunk.trim());
+      });
+
+    app.use(morgan('dev', {sream: morganDebug}));
   }
 
   // Add some auxiliary methods to the app
